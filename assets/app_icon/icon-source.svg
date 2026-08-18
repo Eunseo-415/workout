@@ -1,0 +1,33 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5EA7FB"/>
+      <stop offset="0.55" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="30%" cy="24%" r="65%">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EAF1FF"/>
+    </linearGradient>
+    <filter id="softShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#0F2E7A" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Background: full-bleed square, no rounded corners (Apple/Google apply the mask) -->
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#glow)"/>
+
+  <!-- Dumbbell mark, rotated for a dynamic diagonal feel -->
+  <g transform="rotate(-35 512 512)" filter="url(#softShadow)">
+    <rect x="200" y="392" width="112" height="240" rx="30" fill="url(#bar)"/>
+    <rect x="330" y="432" width="40" height="160" rx="12" fill="url(#bar)"/>
+    <rect x="362" y="472" width="300" height="80" rx="18" fill="url(#bar)"/>
+    <rect x="654" y="432" width="40" height="160" rx="12" fill="url(#bar)"/>
+    <rect x="712" y="392" width="112" height="240" rx="30" fill="url(#bar)"/>
+  </g>
+</svg>
