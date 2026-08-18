@@ -17,6 +17,21 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/app_icon/
+
+# App Store / Play Store 아이콘 자동 생성 설정.
+# `flutter create .` 로 android/ios 폴더를 만든 뒤
+#   dart run flutter_launcher_icons
+# 를 실행하면 assets/app_icon/icon-1024.png 하나로 모든 사이즈의
+# 아이콘(iOS AppIcon.appiconset 포함)이 자동 생성됩니다.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon/icon-1024.png"
+  remove_alpha_ios: true
+  min_sdk_android: 21

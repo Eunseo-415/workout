@@ -31,4 +31,20 @@ lib/
     icon_visual.dart         # 이모지/이미지 아이콘 렌더링 위젯
   screens/
     home_screen.dart         # 메인 화면 (아이콘 선택, 설정, 기록 입력/목록)
+assets/
+  app_icon/
+    icon-1024.png            # App Store 제출용 마스터 아이콘 (1024x1024, 알파 없음)
+    icon-source.svg          # 아이콘 벡터 원본 (수정 가능)
 ```
+
+## 앱 아이콘 적용
+
+`assets/app_icon/icon-1024.png` 하나로 iOS/Android 전체 사이즈 아이콘(iOS `AppIcon.appiconset` 포함)을 자동 생성하도록 `flutter_launcher_icons`가 설정되어 있습니다.
+
+```bash
+flutter create .              # android/ios 폴더가 없다면 먼저 생성
+flutter pub get
+dart run flutter_launcher_icons
+```
+
+실행하면 `ios/Runner/Assets.xcassets/AppIcon.appiconset`와 `android/app/src/main/res/mipmap-*` 아이콘이 모두 갱신됩니다. App Store Connect에는 `assets/app_icon/icon-1024.png`를 1024x1024 마케팅 아이콘으로 그대로 사용할 수 있습니다.
