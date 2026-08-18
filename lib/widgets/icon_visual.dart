@@ -32,9 +32,13 @@ class IconVisual extends StatelessWidget {
         return SizedBox(width: size, height: size);
       }
     }
-    return Text(
-      emoji ?? '',
-      style: TextStyle(fontSize: size * 0.9),
+    return SizedBox(
+      width: size,
+      height: size,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: Text(emoji ?? ''),
+      ),
     );
   }
 }

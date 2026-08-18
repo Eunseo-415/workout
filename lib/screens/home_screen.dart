@@ -380,7 +380,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisCount: 5,
         mainAxisSpacing: 6,
         crossAxisSpacing: 6,
-        mainAxisExtent: 52,
+        mainAxisExtent: 68,
       ),
       itemBuilder: (context, i) {
         final index = indexes[i];
@@ -389,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return GestureDetector(
           onTap: () => _selectIcon(index),
           child: Container(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
             decoration: BoxDecoration(
               color: selected ? const Color(0xFFEFF6FF) : Colors.white,
               border: Border.all(
@@ -400,14 +400,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 IconVisual(emoji: icon.emoji, imageBase64: icon.imageBase64, size: 20),
-                const SizedBox(height: 2),
-                Text(
-                  icon.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                const SizedBox(height: 4),
+                SizedBox(
+                  height: 13,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      icon.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                    ),
+                  ),
                 ),
               ],
             ),
