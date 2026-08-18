@@ -289,14 +289,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      '🏋️ 운동 기록장',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E293B),
-                      ),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.fitness_center, size: 20, color: Color(0xFF1E293B)),
+                        SizedBox(width: 6),
+                        Text(
+                          '운동 기록장',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 15),
                     const Text(
@@ -444,9 +450,22 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.all(12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
-        child: Text(
-          _managerOpen ? '⚙️ 아이콘 설정 닫기 🔼' : '⚙️ 아이콘 설정 (타입/이름/순서) 🔽',
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.settings, size: 16, color: Color(0xFF334155)),
+            const SizedBox(width: 6),
+            Text(
+              _managerOpen ? '아이콘 설정 닫기' : '아이콘 설정 (타입/이름/순서)',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              _managerOpen ? Icons.expand_less : Icons.expand_more,
+              size: 18,
+              color: const Color(0xFF334155),
+            ),
+          ],
         ),
       ),
     );
@@ -478,13 +497,19 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 4),
           const Divider(height: 1),
           const SizedBox(height: 8),
-          const Text(
-            '📁 새 아이콘 추가 (이미지)',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF334155),
-              fontSize: 12,
-            ),
+          const Row(
+            children: [
+              Icon(Icons.folder_open, size: 14, color: Color(0xFF334155)),
+              SizedBox(width: 4),
+              Text(
+                '새 아이콘 추가 (이미지)',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF334155),
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           SizedBox(
@@ -697,10 +722,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      '📅 ${record.date}'
-                      '${record.iconName.isNotEmpty ? ' · ${record.iconName}' : ''}',
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    Row(
+                      children: [
+                        const Icon(Icons.calendar_today, size: 11, color: Color(0xFF64748B)),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${record.date}'
+                          '${record.iconName.isNotEmpty ? ' · ${record.iconName}' : ''}',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        ),
+                      ],
                     ),
                   ],
                 ),
