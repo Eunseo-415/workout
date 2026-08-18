@@ -32,12 +32,19 @@ class IconVisual extends StatelessWidget {
         return SizedBox(width: size, height: size);
       }
     }
-    return SizedBox(
-      width: size,
-      height: size,
-      child: FittedBox(
-        fit: BoxFit.contain,
-        child: Text(emoji ?? ''),
+    // Note: color emoji glyphs render as tofu boxes when drawn through a
+    // scale transform (e.g. FittedBox) on some Skia/Impeller builds, so the
+    // size is fixed via fontSize + a clipped SizedBox instead of scaling.
+    return ClipRect(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Center(
+          child: Text(
+            emoji ?? '',
+            style: TextStyle(fontSize: size * 0.85),
+          ),
+        ),
       ),
     );
   }
