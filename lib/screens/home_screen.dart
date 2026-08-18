@@ -189,7 +189,9 @@ class _HomeScreenState extends State<HomeScreen> {
         : (_selectedIndex < _icons.length ? _icons[_selectedIndex] : _icons[0]);
 
     final record = WorkoutRecord(
-      iconEmoji: icon?.emoji,
+      iconCodePoint: icon?.iconCodePoint,
+      iconFontFamily: icon?.iconFontFamily,
+      iconFontPackage: icon?.iconFontPackage,
       iconImageBase64: icon?.imageBase64,
       iconName: icon?.name ?? '',
       name: name,
@@ -402,7 +404,14 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconVisual(emoji: icon.emoji, imageBase64: icon.imageBase64, size: 20),
+                IconVisual(
+                  iconCodePoint: icon.iconCodePoint,
+                  iconFontFamily: icon.iconFontFamily,
+                  iconFontPackage: icon.iconFontPackage,
+                  imageBase64: icon.imageBase64,
+                  size: 20,
+                  color: selected ? _primaryColor : const Color(0xFF475569),
+                ),
                 const SizedBox(height: 4),
                 SizedBox(
                   height: 13,
@@ -506,7 +515,13 @@ class _HomeScreenState extends State<HomeScreen> {
           SizedBox(
             width: 24,
             child: Center(
-              child: IconVisual(emoji: icon.emoji, imageBase64: icon.imageBase64, size: 18),
+              child: IconVisual(
+                iconCodePoint: icon.iconCodePoint,
+                iconFontFamily: icon.iconFontFamily,
+                iconFontPackage: icon.iconFontPackage,
+                imageBase64: icon.imageBase64,
+                size: 18,
+              ),
             ),
           ),
           const SizedBox(width: 6),
@@ -649,9 +664,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 28,
                 child: Center(
                   child: IconVisual(
-                    emoji: record.iconEmoji,
+                    iconCodePoint: record.iconCodePoint,
+                    iconFontFamily: record.iconFontFamily,
+                    iconFontPackage: record.iconFontPackage,
                     imageBase64: record.iconImageBase64,
                     size: 22,
+                    color: _primaryColor,
                   ),
                 ),
               ),

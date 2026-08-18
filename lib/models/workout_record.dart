@@ -1,6 +1,8 @@
 /// 저장된 운동 기록 한 건.
 class WorkoutRecord {
-  String? iconEmoji;
+  int? iconCodePoint;
+  String? iconFontFamily;
+  String? iconFontPackage;
   String? iconImageBase64;
   String iconName;
   String name;
@@ -9,7 +11,9 @@ class WorkoutRecord {
   String reps;
 
   WorkoutRecord({
-    this.iconEmoji,
+    this.iconCodePoint,
+    this.iconFontFamily,
+    this.iconFontPackage,
     this.iconImageBase64,
     required this.iconName,
     required this.name,
@@ -19,7 +23,9 @@ class WorkoutRecord {
   });
 
   factory WorkoutRecord.fromJson(Map<String, dynamic> json) => WorkoutRecord(
-        iconEmoji: json['iconEmoji'] as String?,
+        iconCodePoint: json['iconCodePoint'] as int?,
+        iconFontFamily: json['iconFontFamily'] as String?,
+        iconFontPackage: json['iconFontPackage'] as String?,
         iconImageBase64: json['iconImageBase64'] as String?,
         iconName: json['iconName'] as String? ?? '',
         name: json['name'] as String? ?? '',
@@ -29,7 +35,9 @@ class WorkoutRecord {
       );
 
   Map<String, dynamic> toJson() => {
-        'iconEmoji': iconEmoji,
+        'iconCodePoint': iconCodePoint,
+        'iconFontFamily': iconFontFamily,
+        'iconFontPackage': iconFontPackage,
         'iconImageBase64': iconImageBase64,
         'iconName': iconName,
         'name': name,

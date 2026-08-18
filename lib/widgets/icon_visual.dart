@@ -2,17 +2,27 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-/// 이모지 또는 base64 이미지를 동일한 자리에 렌더링하는 아이콘 표시 위젯.
+/// 커스텀 이미지 또는 내장 벡터 아이콘을 동일한 자리에 렌더링하는 위젯.
+///
+/// 이모지 대신 벡터 아이콘(`IconData`)을 쓰는 이유: 컬러 이모지 글리프는
+/// 일부 Skia/Impeller 렌더러 조합에서 깨진 사각형(tofu)으로 표시되는
+/// 문제가 있어, 플랫폼에 상관없이 항상 동일하게 그려지는 아이콘 폰트를 쓴다.
 class IconVisual extends StatelessWidget {
-  final String? emoji;
+  final int? iconCodePoint;
+  final String? iconFontFamily;
+  final String? iconFontPackage;
   final String? imageBase64;
   final double size;
+  final Color? color;
 
   const IconVisual({
     super.key,
-    this.emoji,
+    this.iconCodePoint,
+    this.iconFontFamily,
+    this.iconFontPackage,
     this.imageBase64,
     this.size = 20,
+    this.color,
   });
 
   @override
@@ -32,19 +42,16 @@ class IconVisual extends StatelessWidget {
         return SizedBox(width: size, height: size);
       }
     }
-    // Note: color emoji glyphs render as tofu boxes when drawn through a
-    // scale transform (e.g. FittedBox) on some Skia/Impeller builds, so the
-    // size is fixed via fontSize + a clipped SizedBox instead of scaling.
-    return ClipRect(
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Center(
-          child: Text(
-            emoji ?? '',
-            style: TextStyle(fontSize: size * 0.85),
-          ),
-        ),
+    if (iconCodePoint == null) {
+      return SizedBox(width: size, height: size);
+    }
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Icon(
+        IconData(iconCodePoint!, fontFamily: iconFontFamily, fontPackage: iconFontPackage),
+        size: size,
+        color: color ?? const Color(0xFF334155),
       ),
     );
   }
