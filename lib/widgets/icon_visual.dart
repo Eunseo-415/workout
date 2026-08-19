@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -11,6 +12,9 @@ class IconVisual extends StatelessWidget {
   final int? iconCodePoint;
   final String? iconFontFamily;
   final String? iconFontPackage;
+  final String? imagePath;
+
+  /// 구버전 호환용: 예전 데이터는 이미지가 base64로 저장돼 있다.
   final String? imageBase64;
   final double size;
   final Color? color;
@@ -20,6 +24,7 @@ class IconVisual extends StatelessWidget {
     this.iconCodePoint,
     this.iconFontFamily,
     this.iconFontPackage,
+    this.imagePath,
     this.imageBase64,
     this.size = 20,
     this.color,
@@ -27,6 +32,18 @@ class IconVisual extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (imagePath != null && imagePath!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: Image.file(
+          File(imagePath!),
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => SizedBox(width: size, height: size),
+        ),
+      );
+    }
     if (imageBase64 != null && imageBase64!.isNotEmpty) {
       try {
         return ClipRRect(
@@ -49,6 +66,11 @@ class IconVisual extends StatelessWidget {
       width: size,
       height: size,
       child: Icon(
+        // 코드포인트가 저장된 값에서 런타임에 조립되므로 const로 만들 수 없다.
+        // 여기서 쓰이는 코드포인트는 모두 defaultWorkoutIcons()의 const Icons.*
+        // 참조를 통해 폰트 트리쉐이킹 대상에 이미 포함되므로 release 빌드에서도
+        // 아이콘이 누락되지 않는다.
+        // ignore: non_const_argument_for_const_parameter
         IconData(iconCodePoint!, fontFamily: iconFontFamily, fontPackage: iconFontPackage),
         size: size,
         color: color ?? const Color(0xFF334155),
