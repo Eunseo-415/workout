@@ -10,18 +10,20 @@ class StorageService {
   static const _iconsKey = 'iconList';
   static const _workoutsKey = 'workouts';
 
-  Future<List<WorkoutIcon>> loadIcons() async {
+  /// [defaultIcons]는 저장된 아이콘이 하나도 없을 때(최초 실행 등)만 쓰인다.
+  /// 호출하는 쪽에서 현재 로케일로 번역된 기본 아이콘 목록을 넘겨준다.
+  Future<List<WorkoutIcon>> loadIcons(List<WorkoutIcon> defaultIcons) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_iconsKey);
-    if (raw == null || raw.isEmpty) return defaultWorkoutIcons();
+    if (raw == null || raw.isEmpty) return defaultIcons;
     try {
       final decoded = jsonDecode(raw) as List;
       final icons = decoded
           .map((e) => WorkoutIcon.fromJson(e as Map<String, dynamic>))
           .toList();
-      return icons.isEmpty ? defaultWorkoutIcons() : icons;
+      return icons.isEmpty ? defaultIcons : icons;
     } catch (_) {
-      return defaultWorkoutIcons();
+      return defaultIcons;
     }
   }
 

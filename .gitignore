@@ -7,6 +7,9 @@ build/
 .pub/
 pubspec.lock
 
+# `flutter pub get`(pubspec.yaml의 generate: true)가 자동으로 다시 생성한다.
+lib/l10n/generated/
+
 *.iml
 .idea/
 
