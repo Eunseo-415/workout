@@ -23,23 +23,38 @@ flutter create .
 lib/
   main.dart                  # 앱 진입점, 테마 설정
   models/
-    workout_icon.dart        # 아이콘 모델 (이모지/이미지, 타입)
+    workout_icon.dart        # 아이콘 모델 (벡터 아이콘/이미지, 타입)
     workout_record.dart      # 운동 기록 모델
   services/
     storage_service.dart     # shared_preferences 저장/불러오기
   widgets/
-    icon_visual.dart         # 이모지/이미지 아이콘 렌더링 위젯
+    icon_visual.dart         # 벡터 아이콘/이미지 렌더링 위젯
   screens/
     home_screen.dart         # 메인 화면 (아이콘 선택, 설정, 기록 입력/목록)
 assets/
   app_icon/
-    icon-1024.png            # App Store 제출용 마스터 아이콘 (1024x1024, 알파 없음)
+    icon-1024.png            # App Store 마케팅 아이콘 (1024x1024, 알파 없음)
     icon-source.svg          # 아이콘 벡터 원본 (수정 가능)
+    AppIcon.appiconset/      # iOS용 전체 사이즈 아이콘 세트 (iPhone+iPad+마케팅, Contents.json 포함)
 ```
 
 ## 앱 아이콘 적용
 
-`assets/app_icon/icon-1024.png` 하나로 iOS/Android 전체 사이즈 아이콘(iOS `AppIcon.appiconset` 포함)을 자동 생성하도록 `flutter_launcher_icons`가 설정되어 있습니다.
+### iOS
+
+`assets/app_icon/AppIcon.appiconset/`에 iPhone·iPad·App Store 마케팅 아이콘까지 필요한 사이즈가 전부(iPad Pro 167x167, iPad 152x152 포함) 들어 있습니다. `ios/` 폴더가 있다면 이 폴더 내용을 그대로 복사해서 교체하세요.
+
+```bash
+cp -R assets/app_icon/AppIcon.appiconset/. ios/Runner/Assets.xcassets/AppIcon.appiconset/
+```
+
+복사 후 Xcode에서 Product → Clean Build Folder 한 뒤 다시 Archive/업로드하면 "Missing required icon file" 검증 오류가 해결됩니다.
+
+> `flutter_launcher_icons`(아래 참고)로 자동 생성한 아이콘은 iPad 전용 사이즈(152/167)가 빠지는 경우가 있어, iOS는 이 폴더를 직접 복사하는 방법을 권장합니다.
+
+### Android (및 iOS 재생성)
+
+`assets/app_icon/icon-1024.png` 하나로 Android 전체 사이즈 아이콘을 자동 생성하도록 `flutter_launcher_icons`가 설정되어 있습니다.
 
 ```bash
 flutter create .              # android/ios 폴더가 없다면 먼저 생성
@@ -47,4 +62,4 @@ flutter pub get
 dart run flutter_launcher_icons
 ```
 
-실행하면 `ios/Runner/Assets.xcassets/AppIcon.appiconset`와 `android/app/src/main/res/mipmap-*` 아이콘이 모두 갱신됩니다. App Store Connect에는 `assets/app_icon/icon-1024.png`를 1024x1024 마케팅 아이콘으로 그대로 사용할 수 있습니다.
+iOS 아이콘까지 다시 생성했다면, 생성된 `AppIcon.appiconset`에 iPad 사이즈(152x152, 167x167)가 포함됐는지 `Contents.json`에서 꼭 확인하세요. 빠져 있다면 위의 `assets/app_icon/AppIcon.appiconset/`로 다시 덮어써야 합니다.

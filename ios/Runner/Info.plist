@@ -6,13 +6,6 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<key>CFBundleLocalizations</key>
-	<array>
-		<string>ko</string>
-		<string>en</string>
-		<string>zh</string>
-		<string>vi</string>
-	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Simple Workout</string>
 	<key>CFBundleExecutable</key>
@@ -21,6 +14,13 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ko</string>
+		<string>en</string>
+		<string>zh</string>
+		<string>vi</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>workout</string>
 	<key>CFBundlePackageType</key>
