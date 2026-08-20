@@ -1,55 +1,34 @@
 /// 저장된 운동 기록 한 건.
 class WorkoutRecord {
-  int? iconCodePoint;
-  String? iconFontFamily;
-  String? iconFontPackage;
-  String? iconImagePath;
-
-  /// 구버전 호환용(과거엔 이미지를 base64로 직접 저장했다). 새 기록은
-  /// [iconImagePath]만 채워진다.
-  String? iconImageBase64;
-  String iconName;
+  final String id;
+  String exerciseKey;
   String name;
   String date; // yyyy-MM-dd
-  String weight;
-  String reps;
+  int durationMinutes;
 
   WorkoutRecord({
-    this.iconCodePoint,
-    this.iconFontFamily,
-    this.iconFontPackage,
-    this.iconImagePath,
-    this.iconImageBase64,
-    required this.iconName,
+    required this.id,
+    required this.exerciseKey,
     required this.name,
     required this.date,
-    required this.weight,
-    required this.reps,
+    required this.durationMinutes,
   });
 
   factory WorkoutRecord.fromJson(Map<String, dynamic> json) => WorkoutRecord(
-        iconCodePoint: json['iconCodePoint'] as int?,
-        iconFontFamily: json['iconFontFamily'] as String?,
-        iconFontPackage: json['iconFontPackage'] as String?,
-        iconImagePath: json['iconImagePath'] as String?,
-        iconImageBase64: json['iconImageBase64'] as String?,
-        iconName: json['iconName'] as String? ?? '',
+        id: json['id'] as String? ??
+            'w${DateTime.now().microsecondsSinceEpoch}',
+        exerciseKey: json['exerciseKey'] as String? ?? 'strength',
         name: json['name'] as String? ?? '',
         date: json['date'] as String? ?? '',
-        weight: json['weight'] as String? ?? '',
-        reps: json['reps'] as String? ?? '',
+        // 구버전(weight/reps 기반) 데이터에는 이 필드가 없으므로 0으로 대체된다.
+        durationMinutes: json['durationMinutes'] as int? ?? 0,
       );
 
   Map<String, dynamic> toJson() => {
-        'iconCodePoint': iconCodePoint,
-        'iconFontFamily': iconFontFamily,
-        'iconFontPackage': iconFontPackage,
-        'iconImagePath': iconImagePath,
-        'iconImageBase64': iconImageBase64,
-        'iconName': iconName,
+        'id': id,
+        'exerciseKey': exerciseKey,
         'name': name,
         'date': date,
-        'weight': weight,
-        'reps': reps,
+        'durationMinutes': durationMinutes,
       };
 }

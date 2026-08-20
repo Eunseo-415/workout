@@ -1,24 +1,24 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:intl/intl.dart';
 
 import '../l10n/generated/app_localizations.dart';
-import '../models/workout_icon.dart';
+import '../models/exercise.dart';
 import '../models/workout_record.dart';
 import '../services/storage_service.dart';
-import '../widgets/icon_visual.dart';
+import '../theme/app_theme.dart';
+import '../widgets/exercise_icon.dart';
 
-const _primaryColor = Color(0xFF3B82F6);
+enum _Tab { log, calendar }
 
-final List<TextInputFormatter> _weightInputFormatters = [
-  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-];
-final List<TextInputFormatter> _repsInputFormatters = [
+final List<TextInputFormatter> _digitsOnly = [
   FilteringTextInputFormatter.digitsOnly,
 ];
+
+String _fmtDate(DateTime date) =>
+    '${date.year.toString().padLeft(4, '0')}-'
+    '${date.month.toString().padLeft(2, '0')}-'
+    '${date.day.toString().padLeft(2, '0')}';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,20 +29,34 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final StorageService _storage = StorageService();
-  final ImagePicker _imagePicker = ImagePicker();
 
-  List<WorkoutIcon> _icons = [];
-  List<WorkoutRecord> _workouts = [];
-  String _currentTab = 'type1';
-  int _selectedIndex = 0;
-  bool _managerOpen = false;
   bool _loading = true;
   bool _dataLoadStarted = false;
 
+  _Tab _tab = _Tab.log;
+  List<WorkoutRecord> _workouts = [];
+  List<CustomExercise> _customExercises = [];
+  String _selectedExerciseKey = kExercisePresets.first.key;
+
   final _nameController = TextEditingController();
-  final _weightController = TextEditingController();
-  final _repsController = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
+  DateTime _formDate = DateTime.now();
+  final _hoursController = TextEditingController();
+  final _minutesController = TextEditingController();
+
+  bool _addingCustom = false;
+  final _customDraftController = TextEditingController();
+  final _customFocusNode = FocusNode();
+
+  DateTime _calMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  String? _selectedDay;
+
+  late final String _todayStr = _fmtDate(DateTime.now());
+
+  @override
+  void initState() {
+    super.initState();
+    _customFocusNode.addListener(_onCustomFocusChange);
+  }
 
   @override
   void didChangeDependencies() {
@@ -58,293 +72,194 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _weightController.dispose();
-    _repsController.dispose();
+    _hoursController.dispose();
+    _minutesController.dispose();
+    _customDraftController.dispose();
+    _customFocusNode.removeListener(_onCustomFocusChange);
+    _customFocusNode.dispose();
     super.dispose();
   }
 
   Future<void> _loadData() async {
     final loc = AppLocalizations.of(context);
-    final icons = await _storage.loadIcons(defaultWorkoutIcons(loc));
+    final customExercises = await _storage.loadCustomExercises();
     final workouts = await _storage.loadWorkouts();
     if (!mounted) return;
     setState(() {
-      _icons = icons;
+      _customExercises = customExercises;
       _workouts = workouts;
       _loading = false;
-      if (_icons.isNotEmpty) {
-        _nameController.text = _icons[0].displayName(loc);
-      }
+      _nameController.text = kExercisePresets.first.label(loc);
     });
   }
 
-  String get _formattedDate =>
-      '${_selectedDate.year.toString().padLeft(4, '0')}-'
-      '${_selectedDate.month.toString().padLeft(2, '0')}-'
-      '${_selectedDate.day.toString().padLeft(2, '0')}';
+  List<_ExerciseOption> _allExerciseOptions(AppLocalizations loc) => [
+        for (final preset in kExercisePresets)
+          _ExerciseOption(key: preset.key, name: preset.label(loc)),
+        for (final custom in _customExercises)
+          _ExerciseOption(key: custom.key, name: custom.name),
+      ];
 
-  static String _formatDate(DateTime date) =>
-      '${date.year.toString().padLeft(4, '0')}-'
-      '${date.month.toString().padLeft(2, '0')}-'
-      '${date.day.toString().padLeft(2, '0')}';
+  void _setTab(_Tab tab) => setState(() => _tab = tab);
 
-  List<int> get _filteredIndexes {
-    final result = <int>[];
-    for (var i = 0; i < _icons.length; i++) {
-      if (_icons[i].type == _currentTab) result.add(i);
-    }
-    return result;
-  }
-
-  void _switchTab(String tab) {
-    final loc = AppLocalizations.of(context);
+  void _selectExercise(String key, String name) {
     setState(() {
-      _currentTab = tab;
-      final firstIndex = _icons.indexWhere((icon) => icon.type == tab);
-      if (firstIndex != -1) {
-        _selectedIndex = firstIndex;
-        _nameController.text = _icons[firstIndex].displayName(loc);
-      }
+      _selectedExerciseKey = key;
+      _nameController.text = name;
     });
   }
 
-  void _selectIcon(int index) {
-    final loc = AppLocalizations.of(context);
+  void _startAddCustom() {
     setState(() {
-      _selectedIndex = index;
-      final displayName = _icons[index].displayName(loc);
-      if (displayName.isNotEmpty) {
-        _nameController.text = displayName;
-      }
+      _addingCustom = true;
+      _customDraftController.clear();
     });
   }
 
-  Future<void> _persistIcons() => _storage.saveIcons(_icons);
-
-  Future<void> _persistWorkouts() => _storage.saveWorkouts(_workouts);
-
-  void _updateIconName(int index, String newName) {
-    setState(() {
-      _icons[index].name = newName;
-      _icons[index].nameCustomized = true;
-      if (index == _selectedIndex) {
-        _nameController.text = newName;
-      }
-    });
-    _persistIcons();
+  void _cancelAddCustom() {
+    setState(() => _addingCustom = false);
+    _customFocusNode.unfocus();
   }
 
-  void _updateIconType(int index, String newType) {
-    setState(() => _icons[index].type = newType);
-    _persistIcons();
-  }
-
-  void _moveIconUp(int index) {
-    if (index <= 0) return;
-    setState(() {
-      final temp = _icons[index];
-      _icons[index] = _icons[index - 1];
-      _icons[index - 1] = temp;
-      if (_selectedIndex == index) {
-        _selectedIndex = index - 1;
-      } else if (_selectedIndex == index - 1) {
-        _selectedIndex = index;
-      }
-    });
-    _persistIcons();
-  }
-
-  void _moveIconDown(int index) {
-    if (index >= _icons.length - 1) return;
-    setState(() {
-      final temp = _icons[index];
-      _icons[index] = _icons[index + 1];
-      _icons[index + 1] = temp;
-      if (_selectedIndex == index) {
-        _selectedIndex = index + 1;
-      } else if (_selectedIndex == index + 1) {
-        _selectedIndex = index;
-      }
-    });
-    _persistIcons();
-  }
-
-  Future<void> _deleteIcon(int index) async {
-    final loc = AppLocalizations.of(context);
-    if (_icons.length <= 1) {
-      _showAlert(loc.alertAtLeastOneIcon);
+  Future<void> _confirmCustomExercise() async {
+    if (!_addingCustom) return;
+    final name = _customDraftController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _addingCustom = false);
       return;
     }
-    final confirmed = await _confirmDialog(
-      title: loc.deleteIconDialogTitle,
-      message: loc.deleteIconDialogMessage(_icons[index].displayName(loc)),
-    );
-    if (!confirmed) return;
+    final key = 'custom-${DateTime.now().microsecondsSinceEpoch}';
     setState(() {
-      _icons.removeAt(index);
-      if (index < _selectedIndex) {
-        _selectedIndex -= 1;
-      }
-      if (_selectedIndex >= _icons.length) {
-        _selectedIndex = _icons.length - 1;
-      }
+      _customExercises = [..._customExercises, CustomExercise(key: key, name: name)];
+      _selectedExerciseKey = key;
+      _nameController.text = name;
+      _addingCustom = false;
     });
-    await _persistIcons();
-    _selectIcon(_selectedIndex);
+    await _storage.saveCustomExercises(_customExercises);
   }
 
-  Future<void> _addCustomImageIcon() async {
-    final loc = AppLocalizations.of(context);
-    final picked =
-        await _imagePicker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
-
-    final docsDir = await getApplicationDocumentsDirectory();
-    final iconsDir = Directory('${docsDir.path}/workout_icons');
-    await iconsDir.create(recursive: true);
-    final ext = picked.path.contains('.') ? picked.path.split('.').last : 'jpg';
-    final file = File('${iconsDir.path}/icon_${DateTime.now().microsecondsSinceEpoch}.$ext');
-    await file.writeAsBytes(bytes);
-
-    setState(() {
-      _icons.add(WorkoutIcon(imagePath: file.path, name: loc.newIconDefaultName, type: _currentTab));
-    });
-    await _persistIcons();
-    _selectIcon(_icons.length - 1);
+  void _onCustomFocusChange() {
+    if (!_customFocusNode.hasFocus && _addingCustom) {
+      _confirmCustomExercise();
+    }
   }
 
   Future<void> _addWorkout() async {
-    final loc = AppLocalizations.of(context);
     final name = _nameController.text.trim();
-    final weight = _weightController.text.trim();
-    final reps = _repsController.text.trim();
-
-    if (name.isEmpty) {
-      _showAlert(loc.alertEnterExerciseName);
-      return;
-    }
-    if (weight.isEmpty || reps.isEmpty) {
-      _showAlert(loc.alertEnterWeightReps);
-      return;
-    }
-    if (double.tryParse(weight) == null || int.tryParse(reps) == null) {
-      _showAlert(loc.alertInvalidWeightReps);
-      return;
-    }
-
-    final icon = _icons.isEmpty
-        ? null
-        : (_selectedIndex < _icons.length ? _icons[_selectedIndex] : _icons[0]);
-
+    if (name.isEmpty) return;
+    final hours = int.tryParse(_hoursController.text) ?? 0;
+    final minutes = int.tryParse(_minutesController.text) ?? 0;
     final record = WorkoutRecord(
-      iconCodePoint: icon?.iconCodePoint,
-      iconFontFamily: icon?.iconFontFamily,
-      iconFontPackage: icon?.iconFontPackage,
-      iconImagePath: icon?.imagePath,
-      iconImageBase64: icon?.imageBase64,
-      iconName: icon?.displayName(loc) ?? '',
+      id: 'w${DateTime.now().microsecondsSinceEpoch}',
+      exerciseKey: _selectedExerciseKey,
       name: name,
-      date: _formattedDate,
-      weight: weight,
-      reps: reps,
+      date: _fmtDate(_formDate),
+      durationMinutes: hours * 60 + minutes,
     );
-
     setState(() {
-      _workouts.insert(0, record);
-      _weightController.clear();
-      _repsController.clear();
+      _workouts = [record, ..._workouts];
+      _hoursController.clear();
+      _minutesController.clear();
     });
-    await _persistWorkouts();
+    await _storage.saveWorkouts(_workouts);
   }
 
-  Future<void> _deleteWorkout(int index) async {
-    final loc = AppLocalizations.of(context);
-    final confirmed = await _confirmDialog(
-      title: loc.deleteWorkoutDialogTitle,
-      message: loc.deleteWorkoutDialogMessage(_workouts[index].name),
-    );
-    if (!confirmed) return;
-    setState(() => _workouts.removeAt(index));
-    await _persistWorkouts();
+  Future<void> _deleteWorkout(String id) async {
+    setState(() => _workouts = _workouts.where((w) => w.id != id).toList());
+    await _storage.saveWorkouts(_workouts);
   }
 
-  Future<void> _editWorkout(int index) async {
+  Future<void> _startEdit(WorkoutRecord record) async {
     final loc = AppLocalizations.of(context);
-    final record = _workouts[index];
     final nameCtrl = TextEditingController(text: record.name);
-    final weightCtrl = TextEditingController(text: record.weight);
-    final repsCtrl = TextEditingController(text: record.reps);
-    DateTime date = DateTime.tryParse(record.date) ?? DateTime.now();
+    final hoursCtrl =
+        TextEditingController(text: (record.durationMinutes ~/ 60).toString());
+    final minutesCtrl =
+        TextEditingController(text: (record.durationMinutes % 60).toString());
+    DateTime editDate = DateTime.tryParse(record.date) ?? DateTime.now();
 
     try {
       final saved = await showDialog<bool>(
         context: context,
         builder: (ctx) => StatefulBuilder(
-          builder: (ctx, setDialogState) => AlertDialog(
-            title: Text(loc.editWorkoutDialogTitle),
-            content: SingleChildScrollView(
+          builder: (ctx, setDialogState) => Dialog(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.s4),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: _inputDecoration(loc.exerciseNameHint),
+                  Text(
+                    loc.editWorkoutDialogTitle,
+                    style: Theme.of(ctx)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: ctx,
-                        initialDate: date,
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) {
-                        setDialogState(() => date = picked);
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: _inputDecoration(),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.calendar_today, size: 16, color: Color(0xFF64748B)),
-                          const SizedBox(width: 8),
-                          Text(_formatDate(date)),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(height: AppSpacing.s3),
+                  _FieldLabel(loc.nameFieldLabel),
+                  const SizedBox(height: 5),
+                  TextField(controller: nameCtrl),
+                  const SizedBox(height: AppSpacing.s3),
+                  _FieldLabel(loc.dateFieldLabel),
+                  const SizedBox(height: 5),
+                  _DateInput(
+                    date: editDate,
+                    onChanged: (d) => setDialogState(() => editDate = d),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.s3),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: TextField(
-                          controller: weightCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: _weightInputFormatters,
-                          decoration: _inputDecoration(loc.weightHint),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _FieldLabel(loc.hoursFieldLabel),
+                            const SizedBox(height: 5),
+                            TextField(
+                              controller: hoursCtrl,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: _digitsOnly,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpacing.s3),
                       Expanded(
-                        child: TextField(
-                          controller: repsCtrl,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: _repsInputFormatters,
-                          decoration: _inputDecoration(loc.repsHint),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _FieldLabel(loc.minutesFieldLabel),
+                            const SizedBox(height: 5),
+                            TextField(
+                              controller: minutesCtrl,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: _digitsOnly,
+                            ),
+                          ],
                         ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.s4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: Text(loc.cancelButton),
+                      ),
+                      const SizedBox(width: AppSpacing.s2),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: Text(loc.saveButton),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(loc.cancelButton)),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(loc.saveButton)),
-            ],
           ),
         ),
       );
@@ -352,613 +267,790 @@ class _HomeScreenState extends State<HomeScreen> {
       if (saved != true) return;
 
       final name = nameCtrl.text.trim();
-      final weight = weightCtrl.text.trim();
-      final reps = repsCtrl.text.trim();
-      if (name.isEmpty ||
-          weight.isEmpty ||
-          reps.isEmpty ||
-          double.tryParse(weight) == null ||
-          int.tryParse(reps) == null) {
-        _showAlert(loc.alertInvalidEditFields);
-        return;
-      }
-
+      final hours = int.tryParse(hoursCtrl.text) ?? 0;
+      final minutes = int.tryParse(minutesCtrl.text) ?? 0;
       setState(() {
-        record.name = name;
-        record.weight = weight;
-        record.reps = reps;
-        record.date = _formatDate(date);
+        record.name = name.isEmpty ? record.name : name;
+        record.date = _fmtDate(editDate);
+        record.durationMinutes = hours * 60 + minutes;
       });
-      await _persistWorkouts();
+      await _storage.saveWorkouts(_workouts);
     } finally {
       nameCtrl.dispose();
-      weightCtrl.dispose();
-      repsCtrl.dispose();
+      hoursCtrl.dispose();
+      minutesCtrl.dispose();
     }
   }
 
-  Future<bool> _confirmDialog({required String title, required String message}) async {
-    final loc = AppLocalizations.of(context);
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(loc.cancelButton)),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(loc.deleteButton, style: const TextStyle(color: Color(0xFFEF4444))),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
+  void _prevMonth() =>
+      setState(() => _calMonth = DateTime(_calMonth.year, _calMonth.month - 1, 1));
+  void _nextMonth() =>
+      setState(() => _calMonth = DateTime(_calMonth.year, _calMonth.month + 1, 1));
+
+  void _selectDay(String dateStr) {
+    setState(() => _selectedDay = _selectedDay == dateStr ? null : dateStr);
   }
 
-  void _showAlert(String message) {
-    final loc = AppLocalizations.of(context);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        content: Text(message),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(loc.confirmButton)),
-        ],
-      ),
-    );
+  void _logForSelectedDay() {
+    setState(() {
+      _tab = _Tab.log;
+      final selected = _selectedDay;
+      if (selected != null) {
+        final d = DateTime.tryParse(selected);
+        if (d != null) _formDate = d;
+      }
+    });
   }
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) {
-      setState(() => _selectedDate = picked);
+  String _summaryFor(AppLocalizations loc, int totalMinutes) {
+    final h = totalMinutes ~/ 60;
+    final m = totalMinutes % 60;
+    return h > 0 ? loc.durationHoursMinutes(h, m) : loc.durationMinutesOnly(m);
+  }
+
+  List<_CalendarDay> _buildCalendarDays() {
+    final year = _calMonth.year;
+    final month = _calMonth.month;
+    final firstOfMonth = DateTime(year, month, 1);
+    final startOffset = firstOfMonth.weekday % 7; // Sunday=0, like JS getDay()
+    final gridStart = firstOfMonth.subtract(Duration(days: startOffset));
+
+    final byDate = <String, List<WorkoutRecord>>{};
+    for (final w in _workouts) {
+      (byDate[w.date] ??= []).add(w);
     }
-  }
 
-  InputDecoration _inputDecoration([String hint = '']) => InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.all(12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _primaryColor),
-        ),
+    return List.generate(35, (i) {
+      final d = gridStart.add(Duration(days: i));
+      final dStr = _fmtDate(d);
+      final dayWorkouts = byDate[dStr] ?? const <WorkoutRecord>[];
+      final shown = dayWorkouts.take(3).toList();
+      return _CalendarDay(
+        dateStr: dStr,
+        dayNum: d.day,
+        inMonth: d.month == month,
+        isToday: dStr == _todayStr,
+        isSelected: dStr == _selectedDay,
+        shownExerciseKeys: shown.map((w) => w.exerciseKey).toList(),
+        overflowCount: dayWorkouts.length - shown.length,
       );
+    });
+  }
+
+  String _monthStatusLabel(AppLocalizations loc) {
+    final year = _calMonth.year;
+    final month = _calMonth.month;
+    final monthWorkouts = _workouts.where((w) {
+      final d = DateTime.tryParse(w.date);
+      return d != null && d.year == year && d.month == month;
+    }).toList();
+    if (monthWorkouts.isEmpty) return loc.emptyMonthWorkouts;
+    final totalMin =
+        monthWorkouts.fold<int>(0, (sum, w) => sum + w.durationMinutes);
+    return loc.monthStatusWorkouts(
+        monthWorkouts.length, _summaryFor(loc, totalMin));
+  }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF1F5F9),
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final loc = AppLocalizations.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Container(
-              margin: const EdgeInsets.all(10),
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 15,
-                    offset: const Offset(0, 4),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 430),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(loc),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.s4, AppSpacing.s3, AppSpacing.s4, 0),
+                  child: _SegmentedTabs(
+                    tab: _tab,
+                    onChanged: _setTab,
+                    logLabel: loc.tabLog,
+                    calendarLabel: loc.tabCalendar,
                   ),
-                ],
-              ),
-              child: SingleChildScrollView(
+                ),
+                if (_tab == _Tab.log)
+                  _buildLogTab(loc)
+                else
+                  _buildCalendarTab(loc),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(AppLocalizations loc) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.s4, AppSpacing.s4, AppSpacing.s4, 0),
+      child: Row(
+        children: [
+          const Icon(Icons.fitness_center, size: 22, color: AppColors.accent),
+          const SizedBox(width: 8),
+          Text(
+            loc.headerTitle,
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogTab(AppLocalizations loc) {
+    final options = _allExerciseOptions(loc);
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.s4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SectionLabel(loc.exerciseSectionLabel),
+          const SizedBox(height: AppSpacing.s2),
+          SizedBox(
+            height: 76,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final option in options)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _ExerciseChip(
+                      label: option.name,
+                      exerciseKey: option.key,
+                      selected: _selectedExerciseKey == option.key,
+                      onTap: () => _selectExercise(option.key, option.name),
+                    ),
+                  ),
+                if (_addingCustom)
+                  _CustomExerciseInput(
+                    controller: _customDraftController,
+                    focusNode: _customFocusNode,
+                    hint: loc.customExerciseNameHint,
+                    onSubmit: _confirmCustomExercise,
+                    onEscape: _cancelAddCustom,
+                  )
+                else
+                  _AddCustomChip(
+                    label: loc.customExerciseChipLabel,
+                    onTap: _startAddCustom,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s4),
+          _FieldLabel(loc.nameFieldLabel),
+          const SizedBox(height: 5),
+          TextField(
+            controller: _nameController,
+            decoration: InputDecoration(hintText: loc.exerciseNameHint),
+          ),
+          const SizedBox(height: AppSpacing.s3),
+          _FieldLabel(loc.dateFieldLabel),
+          const SizedBox(height: 5),
+          _DateInput(
+            date: _formDate,
+            onChanged: (d) => setState(() => _formDate = d),
+          ),
+          const SizedBox(height: AppSpacing.s3),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.fitness_center, size: 20, color: Color(0xFF1E293B)),
-                        const SizedBox(width: 6),
-                        Text(
-                          loc.headerTitle,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                      ],
+                    _FieldLabel(loc.hoursFieldLabel),
+                    const SizedBox(height: 5),
+                    TextField(
+                      controller: _hoursController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: _digitsOnly,
+                      decoration: const InputDecoration(hintText: '0'),
                     ),
-                    const SizedBox(height: 15),
-                    Text(
-                      loc.iconSectionLabel,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF475569),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    _buildTypeTabs(loc),
-                    const SizedBox(height: 8),
-                    _buildIconGrid(loc),
-                    const SizedBox(height: 12),
-                    _buildToggleButton(loc),
-                    if (_managerOpen) _buildIconManagerPanel(loc),
-                    _buildInputGroup(loc),
-                    const SizedBox(height: 4),
-                    _buildAddButton(loc),
-                    const SizedBox(height: 20),
-                    Text(
-                      loc.workoutListTitle,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF475569),
-                      ),
-                    ),
-                    const Divider(height: 15, color: Color(0xFFE2E8F0)),
-                    _buildWorkoutList(loc),
                   ],
                 ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTypeTabs(AppLocalizations loc) {
-    return Row(
-      children: [
-        Expanded(child: _tabButton(loc.tabType1, 'type1')),
-        const SizedBox(width: 5),
-        Expanded(child: _tabButton(loc.tabType2, 'type2')),
-      ],
-    );
-  }
-
-  Widget _tabButton(String label, String tab) {
-    final active = _currentTab == tab;
-    return GestureDetector(
-      onTap: () => _switchTab(tab),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? _primaryColor : const Color(0xFFE2E8F0),
-          border: Border.all(color: active ? _primaryColor : const Color(0xFFCBD5E1)),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: active ? Colors.white : const Color(0xFF475569),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildIconGrid(AppLocalizations loc) {
-    final indexes = _filteredIndexes;
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: indexes.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
-        mainAxisSpacing: 6,
-        crossAxisSpacing: 6,
-        mainAxisExtent: 68,
-      ),
-      itemBuilder: (context, i) {
-        final index = indexes[i];
-        final icon = _icons[index];
-        final selected = _selectedIndex == index;
-        return GestureDetector(
-          onTap: () => _selectIcon(index),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            decoration: BoxDecoration(
-              color: selected ? const Color(0xFFEFF6FF) : Colors.white,
-              border: Border.all(
-                color: selected ? _primaryColor : const Color(0xFFE2E8F0),
-                width: selected ? 2 : 1,
-              ),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconVisual(
-                  iconCodePoint: icon.iconCodePoint,
-                  iconFontFamily: icon.iconFontFamily,
-                  iconFontPackage: icon.iconFontPackage,
-                  imagePath: icon.imagePath,
-                  imageBase64: icon.imageBase64,
-                  size: 20,
-                  color: selected ? _primaryColor : const Color(0xFF475569),
-                ),
-                const SizedBox(height: 4),
-                SizedBox(
-                  height: 13,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      icon.displayName(loc),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+              const SizedBox(width: AppSpacing.s3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _FieldLabel(loc.minutesFieldLabel),
+                    const SizedBox(height: 5),
+                    TextField(
+                      controller: _minutesController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: _digitsOnly,
+                      decoration: const InputDecoration(hintText: '0'),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildToggleButton(AppLocalizations loc) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: () => setState(() => _managerOpen = !_managerOpen),
-        style: OutlinedButton.styleFrom(
-          backgroundColor: const Color(0xFFF8FAFC),
-          side: const BorderSide(color: Color(0xFFCBD5E1)),
-          padding: const EdgeInsets.all(12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.settings, size: 16, color: Color(0xFF334155)),
-            const SizedBox(width: 6),
-            Text(
-              _managerOpen ? loc.iconSettingsClose : loc.iconSettingsOpen,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155)),
-            ),
-            const SizedBox(width: 6),
-            Icon(
-              _managerOpen ? Icons.expand_less : Icons.expand_more,
-              size: 18,
-              color: const Color(0xFF334155),
-            ),
-          ],
-        ),
+          const SizedBox(height: AppSpacing.s3),
+          ElevatedButton(
+            onPressed: _addWorkout,
+            child: Text(loc.logWorkoutButton),
+          ),
+          const SizedBox(height: AppSpacing.s6),
+          _SectionLabel(loc.recentSectionLabel),
+          if (_workouts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
+              child: Text(
+                loc.emptyRecentWorkouts,
+                style: TextStyle(color: AppColors.textMuted55, fontSize: 13),
+              ),
+            )
+          else
+            for (final record in _workouts.take(6))
+              _RecordTile(
+                record: record,
+                loc: loc,
+                onEdit: () => _startEdit(record),
+                onDelete: () => _deleteWorkout(record.id),
+              ),
+        ],
       ),
     );
   }
 
-  Widget _buildIconManagerPanel(AppLocalizations loc) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        borderRadius: BorderRadius.circular(10),
-      ),
+  Widget _buildCalendarTab(AppLocalizations loc) {
+    final locale = Localizations.localeOf(context).toString();
+    final days = _buildCalendarDays();
+    final monthLabel = DateFormat.yMMMM(locale).format(_calMonth);
+    final selectedDay = _selectedDay;
+    final selectedDayWorkouts = selectedDay == null
+        ? const <WorkoutRecord>[]
+        : _workouts.where((w) => w.date == selectedDay).toList();
+    final selectedDate =
+        selectedDay == null ? null : DateTime.tryParse(selectedDay);
+
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.s4),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                onPressed: _prevMonth,
+                icon: const Icon(Icons.chevron_left, size: 20),
+              ),
+              Text(
+                monthLabel,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              IconButton(
+                onPressed: _nextMonth,
+                icon: const Icon(Icons.chevron_right, size: 20),
+              ),
+            ],
+          ),
           Text(
-            loc.iconManagePanelTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+            _monthStatusLabel(loc),
+            style: TextStyle(fontSize: 13, color: AppColors.textMuted60),
           ),
-          const SizedBox(height: 8),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _icons.length,
-            itemBuilder: (context, index) => _iconManageRow(loc, _icons[index], index),
-          ),
-          const SizedBox(height: 4),
-          const Divider(height: 1),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.s3),
           Row(
             children: [
-              const Icon(Icons.folder_open, size: 14, color: Color(0xFF334155)),
-              const SizedBox(width: 4),
-              Text(
-                loc.addImageIconLabel,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF334155),
-                  fontSize: 12,
+              for (final label in const ['S', 'M', 'T', 'W', 'T', 'F', 'S'])
+                Expanded(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 10, color: AppColors.textMuted50),
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 6),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _addCustomImageIcon,
-              icon: const Icon(Icons.image_outlined, size: 16),
-              label: Text(loc.pickFromGallery),
-            ),
+          GridView.count(
+            crossAxisCount: 7,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 2,
+            crossAxisSpacing: 2,
+            childAspectRatio: 1,
+            children: [
+              for (final day in days)
+                _DayCell(day: day, onTap: () => _selectDay(day.dateStr)),
+            ],
           ),
+          if (selectedDay != null) ...[
+            const SizedBox(height: AppSpacing.s4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  selectedDate != null
+                      ? DateFormat.MMMd(locale).format(selectedDate)
+                      : '',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textMuted60,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _logForSelectedDay,
+                  child: Text(
+                    loc.logThisDayLink,
+                    style: const TextStyle(fontSize: 12, color: AppColors.accent),
+                  ),
+                ),
+              ],
+            ),
+            if (selectedDayWorkouts.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
+                child: Text(
+                  loc.emptyDayWorkouts,
+                  style: TextStyle(color: AppColors.textMuted55, fontSize: 13),
+                ),
+              )
+            else
+              for (final record in selectedDayWorkouts)
+                _RecordTile(
+                  record: record,
+                  loc: loc,
+                  onEdit: () => _startEdit(record),
+                  onDelete: () => _deleteWorkout(record.id),
+                ),
+          ],
         ],
       ),
     );
   }
+}
 
-  Widget _iconManageRow(AppLocalizations loc, WorkoutIcon icon, int index) {
+class _ExerciseOption {
+  final String key;
+  final String name;
+  const _ExerciseOption({required this.key, required this.name});
+}
+
+class _CalendarDay {
+  final String dateStr;
+  final int dayNum;
+  final bool inMonth;
+  final bool isToday;
+  final bool isSelected;
+  final List<String> shownExerciseKeys;
+  final int overflowCount;
+
+  const _CalendarDay({
+    required this.dateStr,
+    required this.dayNum,
+    required this.inMonth,
+    required this.isToday,
+    required this.isSelected,
+    required this.shownExerciseKeys,
+    required this.overflowCount,
+  });
+}
+
+class _SegmentedTabs extends StatelessWidget {
+  final _Tab tab;
+  final ValueChanged<_Tab> onChanged;
+  final String logLabel;
+  final String calendarLabel;
+
+  const _SegmentedTabs({
+    required this.tab,
+    required this.onChanged,
+    required this.logLabel,
+    required this.calendarLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      key: ValueKey(icon.id),
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.divider),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 24,
-            child: Center(
-              child: IconVisual(
-                iconCodePoint: icon.iconCodePoint,
-                iconFontFamily: icon.iconFontFamily,
-                iconFontPackage: icon.iconFontPackage,
-                imagePath: icon.imagePath,
-                imageBase64: icon.imageBase64,
-                size: 18,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          DropdownButton<String>(
-            value: icon.type,
-            underline: const SizedBox.shrink(),
-            style: const TextStyle(fontSize: 12, color: Colors.black),
-            items: [
-              DropdownMenuItem(value: 'type1', child: Text(loc.dropdownType1)),
-              DropdownMenuItem(value: 'type2', child: Text(loc.dropdownType2)),
-            ],
-            onChanged: (value) {
-              if (value != null) _updateIconType(index, value);
-            },
-          ),
-          const SizedBox(width: 6),
           Expanded(
-            child: TextFormField(
-              key: ValueKey('name_${icon.id}'),
-              initialValue: icon.displayName(loc),
-              style: const TextStyle(fontSize: 13),
-              decoration: InputDecoration(
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                border: const OutlineInputBorder(),
-                hintText: loc.iconNameHint,
-              ),
-              onChanged: (value) => _updateIconName(index, value),
+            child: _segOption(logLabel, tab == _Tab.log, () => onChanged(_Tab.log)),
+          ),
+          Container(width: 1, height: 32, color: AppColors.divider),
+          Expanded(
+            child: _segOption(
+              calendarLabel,
+              tab == _Tab.calendar,
+              () => onChanged(_Tab.calendar),
             ),
-          ),
-          IconButton(
-            onPressed: () => _moveIconUp(index),
-            icon: const Icon(Icons.arrow_upward, size: 16),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          ),
-          IconButton(
-            onPressed: () => _moveIconDown(index),
-            icon: const Icon(Icons.arrow_downward, size: 16),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          ),
-          IconButton(
-            onPressed: () => _deleteIcon(index),
-            icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInputGroup(AppLocalizations loc) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          controller: _nameController,
-          decoration: _inputDecoration(loc.exerciseNameHint),
-        ),
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: _pickDate,
-          child: InputDecorator(
-            decoration: _inputDecoration(),
-            child: Row(
-              children: [
-                const Icon(Icons.calendar_today, size: 16, color: Color(0xFF64748B)),
-                const SizedBox(width: 8),
-                Text(_formattedDate),
-              ],
-            ),
+  Widget _segOption(String label, bool selected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        color: selected ? AppColors.accent : Colors.transparent,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: selected ? AppColors.bg : AppColors.text,
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textMuted60,
+        ),
+      );
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  const _FieldLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Text(
+        text,
+        style: TextStyle(fontSize: 12, color: AppColors.textMuted65),
+      );
+}
+
+class _ExerciseChip extends StatelessWidget {
+  final String label;
+  final String exerciseKey;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ExerciseChip({
+    required this.label,
+    required this.exerciseKey,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 68,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent100 : Colors.transparent,
+          border: Border.all(color: selected ? AppColors.accent : Colors.transparent),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Expanded(
-              child: TextField(
-                controller: _weightController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: _weightInputFormatters,
-                decoration: _inputDecoration(loc.weightHint),
-              ),
+            ExerciseIcon(
+              exerciseKey: exerciseKey,
+              size: 22,
+              color: selected ? AppColors.accent800 : AppColors.text,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _repsController,
-                keyboardType: TextInputType.number,
-                inputFormatters: _repsInputFormatters,
-                decoration: _inputDecoration(loc.repsHint),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                color: selected ? AppColors.accent800 : AppColors.text,
               ),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
+}
 
-  Widget _buildAddButton(AppLocalizations loc) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _addWorkout,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _primaryColor,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        child: Text(
-          loc.addWorkoutButton,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+class _AddCustomChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _AddCustomChip({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 68,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.add_circle_outline, size: 22, color: AppColors.text),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, color: AppColors.text),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildWorkoutList(AppLocalizations loc) {
-    if (_workouts.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Center(
-          child: Text(loc.emptyWorkoutList, style: const TextStyle(color: Colors.grey)),
+class _CustomExerciseInput extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String hint;
+  final VoidCallback onSubmit;
+  final VoidCallback onEscape;
+
+  const _CustomExerciseInput({
+    required this.controller,
+    required this.focusNode,
+    required this.hint,
+    required this.onSubmit,
+    required this.onEscape,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 96,
+      child: Focus(
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            onEscape();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: TextField(
+          controller: controller,
+          focusNode: focusNode,
+          autofocus: true,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 11),
+          decoration: InputDecoration(
+            hintText: hint,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+          ),
+          onSubmitted: (_) => onSubmit(),
         ),
-      );
-    }
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _workouts.length,
-      separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
-      itemBuilder: (context, index) {
-        final record = _workouts[index];
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 28,
-                child: Center(
-                  child: IconVisual(
-                    iconCodePoint: record.iconCodePoint,
-                    iconFontFamily: record.iconFontFamily,
-                    iconFontPackage: record.iconFontPackage,
-                    imagePath: record.iconImagePath,
-                    imageBase64: record.iconImageBase64,
-                    size: 22,
-                    color: _primaryColor,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(color: Colors.black, fontSize: 14),
-                        children: [
-                          TextSpan(
-                            text: record.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          TextSpan(
-                            text: ' ${loc.workoutSummary(record.weight, record.reps)}',
-                            style: const TextStyle(
-                              color: Color(0xFF2563EB),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+      ),
+    );
+  }
+}
+
+class _DateInput extends StatelessWidget {
+  final DateTime date;
+  final ValueChanged<DateTime> onChanged;
+  const _DateInput({required this.date, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: date,
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2100),
+        );
+        if (picked != null) onChanged(picked);
+      },
+      child: InputDecorator(
+        decoration: const InputDecoration(),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_today, size: 14, color: AppColors.text),
+            const SizedBox(width: 8),
+            Text(_fmtDate(date)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecordTile extends StatelessWidget {
+  final WorkoutRecord record;
+  final AppLocalizations loc;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _RecordTile({
+    required this.record,
+    required this.loc,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final h = record.durationMinutes ~/ 60;
+    final m = record.durationMinutes % 60;
+    final summary =
+        h > 0 ? loc.durationHoursMinutes(h, m) : loc.durationMinutesOnly(m);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.divider)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration:
+                const BoxDecoration(color: AppColors.surface, shape: BoxShape.circle),
+            child: ExerciseIcon(
+              exerciseKey: record.exerciseKey,
+              size: 16,
+              color: AppColors.accent700,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text.rich(
+                  TextSpan(
+                    style: DefaultTextStyle.of(context)
+                        .style
+                        .copyWith(fontSize: 14, color: AppColors.text),
+                    children: [
+                      TextSpan(
+                        text: record.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today, size: 11, color: Color(0xFF64748B)),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${record.date}'
-                          '${record.iconName.isNotEmpty ? ' · ${record.iconName}' : ''}',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                      TextSpan(
+                        text: ' $summary',
+                        style: const TextStyle(
+                          color: AppColors.accent700,
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  record.date,
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted55),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onEdit,
+            tooltip: loc.editButton,
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: const Icon(Icons.edit_outlined, size: 16),
+          ),
+          IconButton(
+            onPressed: onDelete,
+            tooltip: loc.deleteButton,
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: const Icon(Icons.delete_outline, size: 16),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DayCell extends StatelessWidget {
+  final _CalendarDay day;
+  final VoidCallback onTap;
+  const _DayCell({required this.day, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final numColor = day.isSelected
+        ? AppColors.accent800
+        : (day.isToday ? AppColors.accent700 : AppColors.text);
+    return GestureDetector(
+      onTap: onTap,
+      child: Opacity(
+        opacity: day.inMonth ? 1 : 0.32,
+        child: Container(
+          padding: const EdgeInsets.only(top: 6),
+          decoration: BoxDecoration(
+            color: day.isSelected ? AppColors.accent100 : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+          child: Column(
+            children: [
+              Text(
+                '${day.dayNum}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: day.isToday ? FontWeight.w700 : FontWeight.w400,
+                  color: numColor,
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
+              const SizedBox(height: 3),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 2,
                 children: [
-                  TextButton(
-                    onPressed: () => _editWorkout(index),
-                    style: TextButton.styleFrom(
-                      backgroundColor: const Color(0xFFEFF6FF),
-                      foregroundColor: _primaryColor,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  for (final key in day.shownExerciseKeys)
+                    ExerciseIcon(exerciseKey: key, size: 11, color: AppColors.accent700),
+                  if (day.overflowCount > 0)
+                    Text(
+                      '+${day.overflowCount}',
+                      style: const TextStyle(fontSize: 9, color: AppColors.accent700),
                     ),
-                    child: Text(loc.editButton, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(width: 6),
-                  TextButton(
-                    onPressed: () => _deleteWorkout(index),
-                    style: TextButton.styleFrom(
-                      backgroundColor: const Color(0xFFFEE2E2),
-                      foregroundColor: const Color(0xFFEF4444),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(loc.deleteButton, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
                 ],
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

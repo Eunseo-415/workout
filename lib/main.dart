@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'l10n/generated/app_localizations.dart';
 import 'screens/home_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const WorkoutApp());
@@ -13,7 +14,6 @@ class WorkoutApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF3B82F6);
     return MaterialApp(
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
@@ -35,14 +35,7 @@ class WorkoutApp extends StatelessWidget {
         }
         return const Locale('ko');
       },
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF1F5F9),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
-          primary: primaryColor,
-        ),
-      ),
+      theme: buildAppTheme(),
       home: const HomeScreen(),
     );
   }
