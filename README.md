@@ -63,3 +63,31 @@ dart run flutter_launcher_icons
 ```
 
 iOS 아이콘까지 다시 생성했다면, 생성된 `AppIcon.appiconset`에 iPad 사이즈(152x152, 167x167)가 포함됐는지 `Contents.json`에서 꼭 확인하세요. 빠져 있다면 위의 `assets/app_icon/AppIcon.appiconset/`로 다시 덮어써야 합니다.
+
+## 앱 이름 다국어 처리
+
+앱과 관련된 "이름"은 두 곳에 따로 존재하고, 각각 다른 방법으로 언어별로 다르게 설정합니다.
+
+### 1. App Store 검색/스토어 페이지 이름 (App Store 지역·언어 기준)
+
+App Store Connect → 앱 정보 → 로케일 추가(예: 한국어, English (U.S.)) → 로케일마다 "이름"을 따로 입력. 코드 변경 없이 App Store Connect에서만 설정합니다.
+
+### 2. 홈 화면 아이콘 아래 표시되는 이름 (기기 시스템 언어 기준)
+
+`ios_localization/`에 언어별 `InfoPlist.strings`를 준비해뒀습니다.
+
+```
+ios_localization/
+  ko.lproj/InfoPlist.strings   # CFBundleDisplayName = "심플한 캘린더 운동기록";
+  en.lproj/InfoPlist.strings   # CFBundleDisplayName = "Simplest Workout Calendar";
+```
+
+적용 방법 (`ios/` 폴더가 있는 상태에서):
+
+1. `ios/Runner.xcworkspace`를 Xcode로 엽니다.
+2. 프로젝트 내비게이터에서 파란 프로젝트 아이콘(**Runner** 프로젝트, 타깃 아님) 선택 → **Info** 탭 → **Localizations** 섹션 → `+` 클릭 → **Korean (ko)** 추가 (English는 보통 기본으로 이미 있음).
+3. `ios/Runner/`에 `InfoPlist.strings` 파일이 아직 없다면: File → New → File → **Strings File**로 `InfoPlist.strings` 생성 → File Inspector에서 **Localize...** 클릭 → English/Korean 체크.
+4. 생성된 `ios/Runner/en.lproj/InfoPlist.strings`, `ios/Runner/ko.lproj/InfoPlist.strings`의 내용을 이 저장소의 `ios_localization/en.lproj/InfoPlist.strings`, `ios_localization/ko.lproj/InfoPlist.strings` 내용으로 각각 교체(또는 새로 복사)합니다.
+5. Product → Clean Build Folder 후 다시 빌드/아카이브.
+
+이렇게 하면 기기 언어를 한국어로 쓰는 사용자와 영어로 쓰는 사용자에게 홈 화면 아이콘 이름이 다르게 보입니다.
