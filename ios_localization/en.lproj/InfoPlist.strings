@@ -1,0 +1,2 @@
+/* Home screen name under the app icon (when the device language is English) */
+CFBundleDisplayName = "Simplest Workout Calendar";
