@@ -32,5 +32,12 @@
   "exerciseCycle": "Cycle",
   "exerciseSwim": "Swim",
   "exerciseYoga": "Yoga",
-  "exerciseClimb": "Climb"
+  "exerciseClimb": "Climb",
+  "exerciseTypeStrength": "Strength",
+  "exerciseTypeCardio": "Cardio",
+  "addCustomExerciseButton": "+ Add custom exercise",
+  "addCustomExerciseDialogTitle": "Add custom exercise",
+  "typeFieldLabel": "Type",
+  "iconFieldLabel": "Icon",
+  "addButton": "Add"
 }

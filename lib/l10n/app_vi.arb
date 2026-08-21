@@ -32,5 +32,12 @@
   "exerciseCycle": "Đạp xe",
   "exerciseSwim": "Bơi",
   "exerciseYoga": "Yoga",
-  "exerciseClimb": "Leo núi"
+  "exerciseClimb": "Leo núi",
+  "exerciseTypeStrength": "Sức mạnh",
+  "exerciseTypeCardio": "Cardio",
+  "addCustomExerciseButton": "+ Thêm bài tập tùy chỉnh",
+  "addCustomExerciseDialogTitle": "Thêm bài tập tùy chỉnh",
+  "typeFieldLabel": "Loại",
+  "iconFieldLabel": "Biểu tượng",
+  "addButton": "Thêm"
 }

@@ -32,5 +32,12 @@
   "exerciseCycle": "骑行",
   "exerciseSwim": "游泳",
   "exerciseYoga": "瑜伽",
-  "exerciseClimb": "攀岩"
+  "exerciseClimb": "攀岩",
+  "exerciseTypeStrength": "力量",
+  "exerciseTypeCardio": "有氧",
+  "addCustomExerciseButton": "+ 添加自定义运动",
+  "addCustomExerciseDialogTitle": "添加自定义运动",
+  "typeFieldLabel": "类型",
+  "iconFieldLabel": "图标",
+  "addButton": "添加"
 }

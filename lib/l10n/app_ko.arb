@@ -112,5 +112,26 @@
   "@exerciseYoga": {"description": "Preset exercise chip: yoga"},
 
   "exerciseClimb": "클라이밍",
-  "@exerciseClimb": {"description": "Preset exercise chip: climb"}
+  "@exerciseClimb": {"description": "Preset exercise chip: climb"},
+
+  "exerciseTypeStrength": "근력",
+  "@exerciseTypeStrength": {"description": "Exercise type group header: strength"},
+
+  "exerciseTypeCardio": "유산소",
+  "@exerciseTypeCardio": {"description": "Exercise type group header: cardio"},
+
+  "addCustomExerciseButton": "+ 커스텀 운동 추가",
+  "@addCustomExerciseButton": {"description": "Button above the Name field that opens the add-custom-exercise dialog"},
+
+  "addCustomExerciseDialogTitle": "커스텀 운동 추가",
+  "@addCustomExerciseDialogTitle": {"description": "Title of the add-custom-exercise dialog"},
+
+  "typeFieldLabel": "종류",
+  "@typeFieldLabel": {"description": "Label above the strength/cardio type toggle"},
+
+  "iconFieldLabel": "아이콘",
+  "@iconFieldLabel": {"description": "Label above the icon picker grid"},
+
+  "addButton": "추가",
+  "@addButton": {"description": "Confirm button label in the add-custom-exercise dialog"}
 }
