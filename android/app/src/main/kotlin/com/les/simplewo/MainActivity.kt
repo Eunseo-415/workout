@@ -1,4 +1,4 @@
-package com.example.workout
+package com.les.simplewo
 
 import io.flutter.embedding.android.FlutterActivity
 
